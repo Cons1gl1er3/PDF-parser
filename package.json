@@ -12,6 +12,7 @@
   "dependencies": {
     "@ilovepdf/ilovepdf-nodejs": "^0.3.1",
     "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "openai": "^5.2.0",
     "pdf-poppler": "^0.2.1",
