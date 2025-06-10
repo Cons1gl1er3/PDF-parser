@@ -1,23 +1,24 @@
-// index.js
-require('dotenv').config(); // Use for local development with a .env file
+// index.js (Final version using direct command-line execution)
+require('dotenv').config();
 const ILovePDFApi = require('@ilovepdf/ilovepdf-nodejs');
 const ILovePDFFile = require('@ilovepdf/ilovepdf-nodejs/ILovePDFFile');
 const fs = require('fs');
 const path = require('path');
 const { OpenAI } = require('openai');
-const pdf = require('pdf-poppler');
 const express = require('express');
+
+// Import Node.js standard utilities for running commands
+const util = require('util');
+const { execFile } = require('child_process');
+const execFileAsync = util.promisify(execFile);
+
 
 // --- Configuration ---
 const app = express();
-const PORT = process.env.PORT || 3000; // Railway provides the PORT environment variable
+const PORT = process.env.PORT || 3000;
 
-// Initialize OpenAI and iLovePDF with environment variables
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-const instance = new ILovePDFApi(process.env.ILOVEPDF_PUBLIC_KEY, process.env.ILOVEPDF_SECRET_KEY);
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const iLovePdfInstance = new ILovePDFApi(process.env.ILOVEPDF_PUBLIC_KEY, process.env.ILOVEPDF_SECRET_KEY);
 
 const SOURCE_PDF = 'Student Book.pdf';
 
@@ -27,7 +28,7 @@ async function processPdfAndExtractText(splitRange) {
         throw new Error('Split range is required.');
     }
 
-    const task = instance.newTask('split');
+    const task = iLovePdfInstance.newTask('split');
     await task.start();
 
     const file = new ILovePDFFile(path.resolve(SOURCE_PDF));
@@ -36,21 +37,35 @@ async function processPdfAndExtractText(splitRange) {
 
     const data = await task.download();
     
-    // Use a temporary directory for processing
     const tempDir = fs.mkdtempSync('pdf-process-');
     const tempPdfPath = path.join(tempDir, 'splitted.pdf');
     fs.writeFileSync(tempPdfPath, data);
 
     console.log(`PDF split for range "${splitRange}" completed.`);
 
-    // Convert PDF to images
-    const opts = {
-        format: 'jpeg',
-        out_dir: tempDir,
-        out_prefix: 'page',
-        page: null,
-    };
-    await pdf.convert(tempPdfPath, opts);
+    // =======================================================================
+    // --- PDF to Image Conversion using direct command-line execution ---
+    // This method is the most reliable. It calls the `pdftocairo` tool
+    // that we install on Railway via nixpacks.toml.
+    // =======================================================================
+    const outputPrefix = path.join(tempDir, 'page');
+    
+    const commandArgs = [
+        '-jpeg',        // Set the output format to JPEG
+        '-r', '150',    // Set the resolution (DPI) to 150
+        tempPdfPath,    // The input file
+        outputPrefix    // The prefix for the output files (e.g., page-1.jpg)
+    ];
+
+    try {
+        await execFileAsync('pdftocairo', commandArgs);
+    } catch (error) {
+        console.error("Error executing pdftocairo. Is Poppler installed and in your PATH?");
+        throw error; // Re-throw the error to be caught by the main handler
+    }
+    // =======================================================================
+
+
     console.log('PDF converted to images.');
 
     const imageFiles = fs.readdirSync(tempDir)
@@ -59,7 +74,6 @@ async function processPdfAndExtractText(splitRange) {
 
     let allExtractedText = '';
 
-    // Process each image with OpenAI
     for (const imageFile of imageFiles) {
         const imagePath = path.join(tempDir, imageFile);
         const base64Image = fs.readFileSync(imagePath).toString('base64');
@@ -81,16 +95,15 @@ async function processPdfAndExtractText(splitRange) {
         allExtractedText += `\n--- Page ${imageFile.replace('.jpg', '')} ---\n${response.choices[0].message.content}\n`;
     }
 
-    // Clean up temporary files and directory
     fs.rmSync(tempDir, { recursive: true, force: true });
     console.log('Text extraction complete. Cleanup finished.');
 
     return allExtractedText;
 }
 
-// --- API Endpoint ---
+// --- API Endpoint (No changes here) ---
 app.get('/extract', async (req, res) => {
-    const { ranges } = req.query; // e.g., /extract?ranges=2-8
+    const { ranges } = req.query;
 
     if (!ranges) {
         return res.status(400).json({ error: 'Please provide page ranges using the "ranges" query parameter.' });
