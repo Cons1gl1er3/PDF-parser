@@ -1,0 +1,20 @@
+{
+  "name": "thi-gk-compiler",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@ilovepdf/ilovepdf-nodejs": "^0.3.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "openai": "^5.2.0",
+    "pdf-poppler": "^0.2.1",
+    "sharp": "^0.34.2"
+  }
+}
