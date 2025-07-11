@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3000;
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const iLovePdfInstance = new ILovePDFApi(process.env.ILOVEPDF_PUBLIC_KEY, process.env.ILOVEPDF_SECRET_KEY);
 
-const SOURCE_PDF = 'Student Book.pdf';
+const SOURCE_PDF = 'Student_Book.pdf';
 
 // --- Core Logic in an async function ---
 async function processPdfAndExtractText(splitRange) {
